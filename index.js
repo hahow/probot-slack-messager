@@ -2,11 +2,13 @@ const get = require('lodash/get')
 const findIndex = require('lodash/findIndex')
 const SlackBot = require('slackbots')
 
-// TODO: env 處理 name
+if (!process.env.REPORT_CHANNEl || !process.env.SLACK_BOT_TOKEN) {
+  throw new Error('need REPORT_CHANNEl and SLACK_BOT_TOKEN')
+}
+
 const reportChannelName = process.env.REPORT_CHANNEl
 
 const bot = new SlackBot({
-  // TODO: env 處理 token
   token: process.env.SLACK_BOT_TOKEN,
   name: process.env.SLACK_BOT_NAME || 'bugbuster'
 })
