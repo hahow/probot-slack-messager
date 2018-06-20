@@ -1,0 +1,41 @@
+{
+  "name": "probot-slack-messager",
+  "version": "1.0.0",
+  "description": "",
+  "author": "jiminycricket <jiminy.upon.star@gmail.com>",
+  "license": "ISC",
+  "repository": "https://github.com/jiminycricket/probot-slack-messager.git",
+  "homepage": "https://github.com/jiminycricket/probot-slack-messager",
+  "bugs": "https://github.com/jiminycricket/probot-slack-messager/issues",
+  "keywords": [
+    "probot",
+    "github",
+    "probot-app"
+  ],
+  "scripts": {
+    "dev": "nodemon --exec \"npm start\"",
+    "start": "probot run ./index.js",
+    "lint": "standard --fix",
+    "test": "jest && standard",
+    "test:watch": "jest --watch --notify --notifyMode=change --coverage"
+  },
+  "dependencies": {
+    "botkit": "^0.6.14",
+    "probot": "^6.0.0",
+    "slackbots": "^1.1.0"
+  },
+  "devDependencies": {
+    "jest": "^22.4.3",
+    "nodemon": "^1.17.2",
+    "smee-client": "^1.0.1",
+    "standard": "^10.0.3"
+  },
+  "engines": {
+    "node": ">= 8.3.0"
+  },
+  "standard": {
+    "env": [
+      "jest"
+    ]
+  }
+}
