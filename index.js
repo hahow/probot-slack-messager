@@ -27,6 +27,7 @@ _getSlackChannel(reportChannelName).then((channel) => {
 
 // 1. probot 聽 github 的事件
 module.exports = robot => {
+  robot.log('probot-slack-messager is on!')
   robot.on('*', async context => {
     // dirty workaround
     if (!github) {
