@@ -1,6 +1,7 @@
 const get = require('lodash/get')
 const findIndex = require('lodash/findIndex')
 const SlackBot = require('slackbots')
+const colorOrange = '#fa8b00'
 
 if (!process.env.REPORT_CHANNEl || !process.env.SLACK_BOT_TOKEN) {
   throw new Error('need REPORT_CHANNEl and SLACK_BOT_TOKEN')
@@ -10,7 +11,7 @@ const reportChannelName = process.env.REPORT_CHANNEl
 
 const bot = new SlackBot({
   token: process.env.SLACK_BOT_TOKEN,
-  name: process.env.SLACK_BOT_NAME || 'bugbuster'
+  name: process.env.SLACK_BOT_NAME || 'habug'
 })
 
 let contact = []
@@ -70,38 +71,24 @@ function _onMoveIssue (data) {
     const parseSlackUsername = _findSlackUsername(issueBody)
     if (parseSlackUsername.length < 1) return
     const slackIds = _transferUsernameToId(parseSlackUsername)
-    const assigneesActtachments = issueAssignees.map((issueAssignee) => {
-      return {
-        title: issueAssignee.login,
-        image_url: issueAssignees.avatar_url,
-        thumb_url: issueAssignees.avatar_url,
-        color: '#00bea4'
-      }
-    })
 
-    const text = `${_appendMention(slackIds)}#${issueNumber} ${issueTitle} 這個 issue 被移到 ${pipline}`
-    const attachments = [].concat(
-      {
-        title: text,
-        title_link: issueUrl,
-        color: '#fa8b00'
-      },
-      assigneesActtachments
-    )
+    const assignees = _joinAssignees(issueAssignees)
 
-    bot.postMessage(reportChannelId,
-      text,
-      {
-        attachments
-      }
-    )
+    const text = `${issueTitle} 從 ${pipline} 。${_appendMention(slackIds)}`
+    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
   })
 }
 
+function _joinAssignees (assignees) {
+  return assignees.map((assignee) => {
+    return assignee.login
+  }).join(', ')
+}
+
 function _parsePipline (body) {
-  const regax = /\*[a-z\sA-Z/]*\*/gm
-  const matches = body.match(regax)
-  return matches[matches.length - 1]
+  const regax = /\*(.*)\*/
+  const matches = body.match(regax)[0]
+  return matches.replace('to', '移到')
 }
 
 function _parseIssue (body) {
@@ -135,43 +122,15 @@ function _onIssueClosed (robot) {
       name: 'wontfix'
     }) !== -1
 
-    console.log(isWontFix)
+    const assignees = _joinAssignees(issueAssignees)
 
-    let assignees = ''
-    issueAssignees.forEach((issueAssignee, index) => {
-      assignees += `${index === 0 ? '' : ', '}${issueAssignee.login}`
-    })
-
-    const assigneesActtachments = issueAssignees.map((issueAssignee) => {
-      return {
-        title: issueAssignee.login,
-        image_url: issueAssignees.avatar_url,
-        thumb_url: issueAssignees.avatar_url,
-        color: '#00bea4'
-      }
-    })
     let text
     if (isWontFix) {
-      text = `${_appendMention(slackIds)}#${issueNumber} ${issueTitle} 這個 issue 已經被 『關閉了』，想了解更多請詢問 ${assignees}。`
+      text = `${issueTitle} 這個 issue 已經被 『關閉了』，想了解更多請詢問 ${assignees}。 ${_appendMention(slackIds)}`
     } else {
-      text = `${_appendMention(slackIds)}#${issueNumber} ${issueTitle} 這個 issue 已經被 ${assignees} 修復了，等待上線後，這個問題就不見囉。`
+      text = `${issueTitle} 這個 issue 已經被 ${assignees} 修復了，等待上線後，這個問題就不見囉。 ${_appendMention(slackIds)}`
     }
-
-    const attachments = [].concat(
-      {
-        title: `#${issueNumber} ${issueTitle}: ${issueUrl}`,
-        title_link: issueUrl,
-        color: '#fa8b00'
-      },
-      assigneesActtachments
-    )
-
-    bot.postMessage(reportChannelId,
-      text,
-      {
-        attachments
-      }
-    )
+    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
   })
 }
 
@@ -189,37 +148,28 @@ function _onIssueAssigned (robot) {
 
     const slackIds = _transferUsernameToId(parseSlackUsername)
 
-    let assignees = ''
-    issueAssignees.forEach((issueAssignee, index) => {
-      assignees += `${index === 0 ? '' : ', '}${issueAssignee.login}`
-    })
-
-    const assigneesActtachments = issueAssignees.map((issueAssignee) => {
-      return {
-        title: issueAssignee.login,
-        image_url: issueAssignees.avatar_url,
-        thumb_url: issueAssignees.avatar_url,
-        color: '#00bea4'
-      }
-    })
-
-    const text = `${_appendMention(slackIds)}#${issueNumber} ${issueTitle} 這個 issue 被指派給 ${assignees}，想了解後續進度就去找他（們）。`
-    const attachments = [].concat(
-      {
-        title: `#${issueNumber} ${issueTitle}: ${issueUrl}`,
-        title_link: issueUrl,
-        color: '#fa8b00'
-      },
-      assigneesActtachments
-    )
-
-    bot.postMessage(reportChannelId,
-      text,
-      {
-        attachments
-      }
-    )
+    const assignees = _joinAssignees(issueAssignees)
+    const text = `${issueTitle} 這個 issue 被指派給 ${assignees}，想了解後續進度就去找他（們）。${_appendMention(slackIds)}`
+    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
   })
+}
+
+function _postSlackChannel (text, issueTitle, issueUrl, assignees) {
+  bot.postMessage(reportChannelId,
+    text,
+    {
+      attachments: [
+        {
+          title: issueTitle,
+          title_link: issueUrl,
+          color: colorOrange
+        },
+        {
+          title: assignees
+        }
+      ]
+    }
+  )
 }
 
 function _appendMention (ids) {
