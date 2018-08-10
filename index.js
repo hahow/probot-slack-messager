@@ -3,6 +3,21 @@ const findIndex = require('lodash/findIndex')
 const SlackBot = require('slackbots')
 const colorOrange = '#fa8b00'
 
+const _nameMapping = {
+  'amowu': 'amowu',
+  'austintodo': 'austin',
+  'barry800414': 'weiming',
+  'choznerol': 'lawrence',
+  'henry40408': 'henry',
+  'jason2506': 'jason.wu',
+  'jiminycricket': 'jimmy',
+  'miterfrants': 'peter',
+  'raccoon-lee': 'raccoon',
+  'rubychi ': 'rubychi',
+  'tcchong': 'terrence',
+  'weihanglo': 'weihanglo',
+}
+
 if (!process.env.REPORT_CHANNEl || !process.env.SLACK_BOT_TOKEN) {
   throw new Error('need REPORT_CHANNEl and SLACK_BOT_TOKEN')
 }
@@ -81,7 +96,7 @@ function _onMoveIssue (data) {
 
 function _joinAssignees (assignees) {
   return assignees.map((assignee) => {
-    return assignee.login
+    return _appendMention(_transferUsernameToId(_nameMapping[assignee.login]));
   }).join(', ')
 }
 
