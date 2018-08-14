@@ -86,7 +86,7 @@ function _onMoveIssue (data) {
     const parseSlackUsername = _findSlackUsername(issueBody)
     if (parseSlackUsername.length < 1) return
     const slackIds = _transferUsernameToId(parseSlackUsername)
-
+    
     const assignees = _joinAssignees(issueAssignees)
 
     const text = `${issueTitle} 從 ${pipline} 。${_appendMention(slackIds)}`
@@ -96,7 +96,7 @@ function _onMoveIssue (data) {
 
 function _joinAssignees (assignees) {
   return assignees.map((assignee) => {
-    return _appendMention(_transferUsernameToId(_nameMapping[assignee.login]));
+    return _appendMention(_transferUsernameToId([_nameMapping[assignee.login]]));
   }).join(', ')
 }
 
