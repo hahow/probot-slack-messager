@@ -85,7 +85,7 @@ function _onMoveIssue (data) {
     const issueNumber = res.data.number
     const issueAssignees = res.data.assignees
     const issueBody = res.data.body
-    const issueUrl = res.data.url
+    const issueUrl = res.data.html_url
 
     // fond slack user in issue body
     const parseSlackUsername = _findSlackUsername(issueBody)
