@@ -1,6 +1,12 @@
 const get = require('lodash/get')
 const findIndex = require('lodash/findIndex')
 const SlackBot = require('slackbots')
+// const createApp = require('probot/lib/github-app')
+// const { findPrivateKey } = require('probot/lib/private-key')
+const octokit = require('@octokit/rest')({
+  debug: false
+})
+
 const colorOrange = '#fa8b00'
 
 const _nameMapping = {
@@ -15,7 +21,7 @@ const _nameMapping = {
   'raccoon-lee': 'raccoon',
   'rubychi ': 'rubychi',
   'tcchong': 'terrence',
-  'weihanglo': 'weihanglo',
+  'weihanglo': 'weihanglo'
 }
 
 if (!process.env.REPORT_CHANNEl || !process.env.SLACK_BOT_TOKEN) {
@@ -31,7 +37,6 @@ const bot = new SlackBot({
 
 let contact = []
 let reportChannelId
-let github
 
 _getSlackUsers().then((contacts) => {
   contact = contacts
@@ -44,25 +49,26 @@ _getSlackChannel(reportChannelName).then((channel) => {
 // 主要有兩個大功能
 
 // 1. probot 聽 github 的事件
-module.exports = robot => {
-  robot.log('probot-slack-messager is on!')
-  robot.on('*', async context => {
-    // dirty workaround
-    if (!github) {
-      github = { ...context.github }
-    }
+module.exports = app => {
+  app.log('probot-slack-messager is on!')
+
+  octokit.authenticate({
+    type: 'token',
+    token: process.env.GITHUB_TOKEN
   })
-  _onIssueAssigned(robot)
-  _onIssueClosed(robot)
-  _slackBot(robot)
+
+  _slackBot()
+  _onIssueAssigned(app)
+  _onIssueClosed(app)
+  _onCommandIssue(app)
 }
 
-function _slackBot (robot) {
+function _slackBot () {
   // 2. SlackBot 聽某一頻道 zenhub 移動的事件
   bot.on('message', (data) => {
     // all ingoing events https://api.slack.com/rtm
     if (data.type === 'message' && data.subtype === 'bot_message') {
-      if (data.text.includes('moved issue') && github) {
+      if (data.text.includes('moved issue')) {
         _onMoveIssue(data)
       }
     }
@@ -72,8 +78,7 @@ function _slackBot (robot) {
 function _onMoveIssue (data) {
   const issue = _parseIssue(data.text)
   const pipline = _parsePipline(data.attachments[0].text)
-
-  github.issues.get({
+  octokit.issues.get({
     ...issue
   }).then((res) => {
     const issueTitle = res.data.title
@@ -86,9 +91,7 @@ function _onMoveIssue (data) {
     const parseSlackUsername = _findSlackUsername(issueBody)
     if (parseSlackUsername.length < 1) return
     const slackIds = _transferUsernameToId(parseSlackUsername)
-    
     const assignees = _joinAssignees(issueAssignees)
-
     const text = `${issueTitle} 從 ${pipline} 。${_appendMention(slackIds)}`
     _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
   })
@@ -96,7 +99,7 @@ function _onMoveIssue (data) {
 
 function _joinAssignees (assignees) {
   return assignees.map((assignee) => {
-    return _appendMention(_transferUsernameToId([_nameMapping[assignee.login]]));
+    return _appendMention(_transferUsernameToId([_nameMapping[assignee.login]]))
   }).join(', ')
 }
 
@@ -118,9 +121,9 @@ function _parseIssue (body) {
   }
 }
 
-function _onIssueClosed (robot) {
-  robot.on('issues.closed', async context => {
-    const issueUrl = get(context, 'payload.issue.url')
+function _onIssueClosed (app) {
+  app.on('issues.closed', async context => {
+    const issueUrl = get(context, 'payload.html_url')
     const issueBody = get(context, 'payload.issue.body')
     const issueNumber = get(context, 'payload.issue.number')
     const issueTitle = get(context, 'payload.issue.title')
@@ -149,9 +152,40 @@ function _onIssueClosed (robot) {
   })
 }
 
-function _onIssueAssigned (robot) {
-  robot.on('issues.assigned', async context => {
-    const issueUrl = get(context, 'payload.issue.url')
+function _onCommandIssue (app) {
+  app.on('issue_comment.created', async context => {
+    // Issue
+    const issueBody = get(context, 'payload.issue.body')
+    const issueNumber = get(context, 'payload.issue.number')
+    const issueTitle = get(context, 'payload.issue.title')
+    const issueAssignees = get(context, 'payload.issue.assignees')
+
+    // Comment
+    const commentBody = get(context, 'payload.comment.body')
+    const commentUrl = get(context, 'payload.comment.html_url')
+    let commentUser = get(context, 'payload.comment.user.login')
+
+    // fond slack user in issue body
+    const parseSlackUsername = _findSlackUsername(issueBody)
+    const slackIds = _transferUsernameToId(parseSlackUsername)
+    const assignees = _joinAssignees(issueAssignees)
+
+    // comment message
+    const commentMessage = _findSlackMessage(commentBody)
+    if (!commentMessage) {
+      return
+    }
+
+    commentUser = _appendMention(_transferUsernameToId([_nameMapping[commentUser]]))
+    const text = `Hi ${_appendMention(slackIds)}： ${commentUser} 在 ${issueTitle} 這個 issue 留言：${commentMessage} `
+
+    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, commentUrl, assignees)
+  })
+}
+
+function _onIssueAssigned (app) {
+  app.on('issues.assigned', async context => {
+    const issueUrl = get(context, 'payload.issue.html_url')
     const issueBody = get(context, 'payload.issue.body')
     const issueNumber = get(context, 'payload.issue.number')
     const issueTitle = get(context, 'payload.issue.title')
@@ -164,7 +198,7 @@ function _onIssueAssigned (robot) {
     const slackIds = _transferUsernameToId(parseSlackUsername)
 
     const assignees = _joinAssignees(issueAssignees)
-    const text = `${issueTitle} 這個 issue 被指派給 ${assignees}，想了解後續進度就去找他（們）。${_appendMention(slackIds)}`
+    const text = `Hi ${_appendMention(slackIds)}, ${issueTitle} 這個 issue 被指派給 ${assignees}，想了解後續進度就去找他（們）。`
     _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
   })
 }
@@ -178,13 +212,19 @@ function _postSlackChannel (text, issueTitle, issueUrl, assignees) {
           title: issueTitle,
           title_link: issueUrl,
           color: colorOrange
-        },
-        {
-          title: assignees
         }
       ]
     }
   )
+}
+
+function _findSlackMessage (body) {
+  const regex1 = /\/slack/gm
+  const matches = body.match(regex1) || []
+  if (matches.length > 0) {
+    return body.replace(/\/slack/g, '')
+  }
+  return false
 }
 
 function _appendMention (ids) {
