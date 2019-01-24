@@ -9,11 +9,13 @@ const octokit = require('@octokit/rest')({
 
 const colorOrange = '#fa8b00'
 
+/** github <-> slack */
 const _nameMapping = {
   'amowu': 'amowu',
   'austintodo': 'austin',
   'barry800414': 'weiming',
   'choznerol': 'lawrence',
+  'citysite102': 'samuel',
   'henry40408': 'henry',
   'jason2506': 'jason.wu',
   'jiminycricket': 'jimmy',
@@ -57,44 +59,10 @@ module.exports = app => {
     token: process.env.GITHUB_TOKEN
   })
 
-  _slackBot()
+  _onMoveIssue(app)
   _onIssueAssigned(app)
   _onIssueClosed(app)
-  _onCommandIssue(app)
-}
-
-function _slackBot () {
-  // 2. SlackBot 聽某一頻道 zenhub 移動的事件
-  bot.on('message', (data) => {
-    // all ingoing events https://api.slack.com/rtm
-    if (data.type === 'message' && data.subtype === 'bot_message') {
-      if (data.text.includes('moved issue')) {
-        _onMoveIssue(data)
-      }
-    }
-  })
-}
-
-function _onMoveIssue (data) {
-  const issue = _parseIssue(data.text)
-  const pipline = _parsePipline(data.attachments[0].text)
-  octokit.issues.get({
-    ...issue
-  }).then((res) => {
-    const issueTitle = res.data.title
-    const issueNumber = res.data.number
-    const issueAssignees = res.data.assignees
-    const issueBody = res.data.body
-    const issueUrl = res.data.html_url
-
-    // fond slack user in issue body
-    const parseSlackUsername = _findSlackUsername(issueBody)
-    if (parseSlackUsername.length < 1) return
-    const slackIds = _transferUsernameToId(parseSlackUsername)
-    const assignees = _joinAssignees(issueAssignees)
-    const text = `${issueTitle} 從 ${pipline} 。${_appendMention(slackIds)}`
-    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
-  })
+  _onCommentIssue(app)
 }
 
 function _joinAssignees (assignees) {
@@ -103,23 +71,54 @@ function _joinAssignees (assignees) {
   }).join(', ')
 }
 
-function _parsePipline (body) {
-  const regax = /\*(.*)\*/
-  const matches = body.match(regax)[0]
-  return matches.replace('to', '移到')
+function _parseColumn (columnUrl) {
+  const components = columnUrl.split('/')
+  const columnId = parseInt(components[components.length - 1])
+  return isNaN(columnId) ? null : columnId
 }
 
-function _parseIssue (body) {
-  const regex1 = /<(.*)\|/
-  const regex2 = /https:\/\/github.com\/(.*)\/(.*)\/issues\/(.*)/
-  const issueUrl = body.match(regex1)[1]
-  const issuesMeta = issueUrl.match(regex2)
+const issueUrlRegex = /https:\/\/github.com\/(.*)\/(.*)\/issues\/(.*)/
+function _parseIssue (issueUrl) {
+  const issuesMeta = issueUrl.match(issueUrlRegex)
   return {
     owner: issuesMeta[1],
     repo: issuesMeta[2],
     number: issuesMeta[3]
   }
 }
+
+/**
+ * 在 project board 上移動 issues
+ */
+function _onMoveIssue () {
+  app.on('project_card.moved', async context => {
+    const issueUrl = get(context, 'payload.project_card.content_url')
+    const issue = _parseIssue(issueUrl)
+    const columnId = _parseColumn()
+    if (!columnId || !issue) {
+      return
+    }
+    const [issue, column] = await Promise.all([
+      octokit.projects.getColumn({ column_id: columnId }),
+      octokit.issues.get(issue)
+    ])
+    const issueTitle = issue.data.title
+    const issueNumber = issue.data.number
+    const issueAssignees = issue.data.assignees
+    const issueBody = issue.data.body
+    const issueUrl = issue.data.html_url
+    const columnName = column.data.name
+
+    // fond slack user in issue body
+    const parseSlackUsername = _findSlackUsername(issueBody)
+    if (parseSlackUsername.length < 1) return
+    const slackIds = _transferUsernameToId(parseSlackUsername)
+    const assignees = _joinAssignees(issueAssignees)
+    const text = `${issueTitle} 從 ${columnName} 。${_appendMention(slackIds)}`
+    _postSlackChannel(text, `#${issueNumber} ${issueTitle}`, issueUrl, assignees)
+  })
+}
+
 
 function _onIssueClosed (app) {
   app.on('issues.closed', async context => {
@@ -152,7 +151,7 @@ function _onIssueClosed (app) {
   })
 }
 
-function _onCommandIssue (app) {
+function _onCommentIssue (app) {
   app.on('issue_comment.created', async context => {
     // Issue
     const issueBody = get(context, 'payload.issue.body')
