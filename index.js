@@ -92,8 +92,8 @@ function _parseIssue (issueUrl) {
  */
 function _onMoveIssue (app) {
   app.on('project_card.moved', async context => {
-    const issueUrl = get(context, 'payload.project_card.content_url')
-    const issue = _parseIssue(issueUrl)
+    const projectCardContentUrl = get(context, 'payload.project_card.content_url')
+    const issue = _parseIssue(projectCardContentUrl)
     const columnId = _parseColumn()
     if (!columnId || !issue) {
       return
