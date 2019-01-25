@@ -98,16 +98,16 @@ function _onMoveIssue (app) {
     if (!columnId || !issue) {
       return
     }
-    const [issue, column] = await Promise.all([
+    const [issueResp, columnResp] = await Promise.all([
       octokit.projects.getColumn({ column_id: columnId }),
       octokit.issues.get(issue)
     ])
-    const issueTitle = issue.data.title
-    const issueNumber = issue.data.number
-    const issueAssignees = issue.data.assignees
-    const issueBody = issue.data.body
-    const issueUrl = issue.data.html_url
-    const columnName = column.data.name
+    const issueTitle = issueResp.data.title
+    const issueNumber = issueResp.data.number
+    const issueAssignees = issueResp.data.assignees
+    const issueBody = issueResp.data.body
+    const issueUrl = issueResp.data.html_url
+    const columnName = columnResp.data.name
 
     // fond slack user in issue body
     const parseSlackUsername = _findSlackUsername(issueBody)
