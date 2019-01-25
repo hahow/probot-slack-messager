@@ -90,7 +90,7 @@ function _parseIssue (issueUrl) {
 /**
  * 在 project board 上移動 issues
  */
-function _onMoveIssue () {
+function _onMoveIssue (app) {
   app.on('project_card.moved', async context => {
     const issueUrl = get(context, 'payload.project_card.content_url')
     const issue = _parseIssue(issueUrl)
